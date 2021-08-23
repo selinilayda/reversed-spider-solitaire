@@ -1,0 +1,490 @@
+<script>
+import _ from "lodash";
+import stackComponent from "./components/Stack";
+import modalWinComponent from "./components/ModalWin";
+import { CLUB, DIAMOND, SPADE, HEART } from "./cardTypes";
+
+export default {
+  components: {
+    stackComponent,
+    modalWinComponent,
+  },
+
+  data() {
+    return {
+      stacks: Array(10)
+        .fill()
+        .map(() => []),
+      cards: [],
+      colors: [CLUB, DIAMOND, SPADE, HEART],
+      selectedCards: [],
+      levelSelected: "1",
+      fullColor: 0,
+      nrOfFoundation: 8,
+      nrOfCardsInColor: 13,
+      showModalWin: false,
+      errorMessage: false,
+    };
+  },
+  created() {
+    this.createCards();
+  },
+
+  methods: {
+    getRndInteger(min, max) {
+      return Math.floor(Math.random() * (max - min + 1)) + min;
+    },
+
+    createCards() {
+      for (let i = 0; i < this.nrOfCardsInColor * this.nrOfFoundation; i++) {
+        this.cards.push({
+          id: i,
+          value: i % this.nrOfCardsInColor,
+          color: this.colors[i % this.levelSelected],
+          reversed: true,
+          stack: -1,
+          selected: false,
+          empty: false,
+          toString() {
+            const names = [
+              "A",
+              "2",
+              "3",
+              "4",
+              "5",
+              "6",
+              "7",
+              "8",
+              "9",
+              "10",
+              "J",
+              "Q",
+              "K",
+            ];
+            return `${names[this.value]} ${this.color} - Stack: ${this.stack}`;
+          },
+        });
+      }
+      this.cards = _.shuffle(this.cards);
+
+      let stackCount = {
+        5: {
+          count: 0,
+          max: 6,
+        },
+        6: {
+          count: 0,
+          max: 4,
+        },
+      };
+
+      // Create stacks
+      for (
+        let stackNumber = 0;
+        stackNumber < this.stacks.length;
+        stackNumber++
+      ) {
+        if (stackCount[5] + stackCount[6] > 10) break;
+        let randomNumber = null;
+
+        do {
+          randomNumber = this.getRndInteger(5, 6);
+          stackCount[randomNumber].count++;
+        } while (stackCount[randomNumber].max < stackCount[randomNumber].count);
+
+        for (let i = 0; i < randomNumber; i++) {
+          const card = this.cards.pop();
+          card.stack = stackNumber;
+          this.stacks[stackNumber].push(card);
+        }
+      }
+
+      // Reverse last card in stack
+      this.stacks.forEach((stack) => {
+        const lastIndex = stack.length - 1;
+        stack[lastIndex].reversed = false;
+      });
+    },
+
+    clearData() {
+      this.stacks = Array(10)
+        .fill()
+        .map(() => []);
+      this.cards = [];
+      this.fullColor = 0;
+    },
+
+    deselectCards() {
+      this.stacks.forEach((stack) => {
+        stack.forEach((card) => {
+          card.selected = false;
+        });
+      });
+      this.selectedCards = [];
+    },
+
+    createEmptyCard(stack) {
+      stack.push({
+        stack: this.stacks.indexOf(stack),
+        empty: true,
+      });
+    },
+
+    checkCardsToMove(cards) {
+      if (cards.length === 1) {
+        return true;
+      }
+
+      // Check color
+      const isLikeFirstCardColor = (card) => card.color === cards[0].color;
+      const areColorsCorrect = cards.every(isLikeFirstCardColor);
+
+      // Check values
+      const firstValue = cards[0].value;
+      const cardsValues = cards.map((card) => card.value);
+      const areVlauesCorrect = cardsValues.every((value, index) => {
+        return value === firstValue - index;
+      });
+
+      return areColorsCorrect && areVlauesCorrect;
+    },
+
+    // Check if cards on stack creating full color in correct order
+    checkFullColor(stack) {
+      let stackLength = 0;
+      const currentStackValues = [];
+      const currentStackColors = [];
+
+      stack.forEach((card) => {
+        if (!card.reversed) {
+          stackLength++;
+          currentStackValues.push(card.value);
+          currentStackColors.push(card.color);
+        }
+      });
+
+      if (stackLength < this.nrOfCardsInColor) {
+        return;
+      }
+
+      let correctValues = 0;
+
+      // Check if cards are in good order
+      for (
+        let i = stackLength - 1;
+        i > stackLength - this.nrOfCardsInColor;
+        i--
+      ) {
+        // Check values
+        if (currentStackValues[i] + 1 === currentStackValues[i - 1]) {
+          correctValues++;
+        } else {
+          return;
+        }
+
+        // Check colors
+        if (currentStackColors[i] !== currentStackColors[i - 1]) {
+          return;
+        }
+      }
+
+      if (correctValues === this.nrOfCardsInColor - 1) {
+        // Cards in good order
+        stack.splice(-this.nrOfCardsInColor);
+        if (stack.length === 0) {
+          this.createEmptyCard(stack);
+        } else if (stack[stack.length - 1].reversed === true) {
+          stack[stack.length - 1].reversed = false;
+        }
+
+        this.fullColor++;
+        this.checkWin();
+      }
+    },
+    // Select card
+    onCardSelect(card) {
+      if (card.reversed) {
+        return;
+      }
+
+      const isAnyCardSelected = this.stacks.some((stack) => {
+        return stack.some((card) => card.selected);
+      });
+
+      if (!isAnyCardSelected && card.empty) {
+        return;
+      }
+
+      if (!isAnyCardSelected) {
+        const currentStack = this.stacks[card.stack];
+        const cardIndex = currentStack.findIndex((cardInStack) => {
+          return cardInStack.id === card.id;
+        });
+        const cardsOnTop = currentStack.slice(cardIndex);
+        const isCardsSelectCorrect = this.checkCardsToMove(cardsOnTop);
+
+        if (isCardsSelectCorrect) {
+          cardsOnTop.forEach((card) => (card.selected = true));
+          this.selectedCards.push(...cardsOnTop);
+        } else {
+          this.deselectCards();
+        }
+      } else {
+        // If there is selected card
+
+        // Diselect card if click on earlier selected card
+        if (card.selected) {
+          this.deselectCards();
+          return;
+        }
+
+        // Return if move on selected card is incorrect
+        if (card.value - 1 !== this.selectedCards[0].value && !card.empty) {
+          this.errorMessage = "Geçersiz hamle!";
+          setTimeout(() => (this.errorMessage = null), 3 * 1000);
+          return;
+        }
+
+        // Move cards
+        const stackFrom = this.stacks[this.selectedCards[0].stack];
+        const stackTo = this.stacks[card.stack];
+        const indexFrom = stackFrom.findIndex((cardInStack) => {
+          return cardInStack.id === this.selectedCards[0].id;
+        });
+
+        // Remove emptyCard if it was exist
+        if (stackTo[0].empty === true) {
+          stackTo.pop();
+        }
+
+        const movingCards = stackFrom.splice(indexFrom);
+        movingCards.forEach((movingCard) => (movingCard.stack = card.stack));
+        stackTo.push(...movingCards);
+
+        this.checkFullColor(stackTo);
+
+        this.deselectCards();
+
+        // Reverse last card in the stack
+        if (stackFrom.length > 0) {
+          stackFrom[stackFrom.length - 1].reversed = false;
+        } else {
+          // if moved card was the last one on the stack
+          this.createEmptyCard(stackFrom);
+        }
+      }
+    },
+    addCards() {
+      if (this.cards.length === 0) {
+        return;
+      }
+
+      const isEmptyCard = this.stacks.some((stack) => stack[0].empty);
+      const stacks = document.querySelector(".stacks");
+
+      // console.log(isEmptyCard);
+
+      if (isEmptyCard) {
+        stacks.classList.add("addCardsValidation");
+        return;
+      }
+
+      stacks.classList.remove("addCardsValidation");
+
+      this.stacks.forEach((stack, idx) => {
+        const card = this.cards.pop();
+        card.stack = idx;
+        card.reversed = false;
+        stack.push(card);
+
+        this.checkFullColor(stack);
+      });
+    },
+
+    checkWin() {
+      if (this.fullColor === this.nrOfFoundation) {
+        this.showModalWin = true;
+      }
+    },
+  },
+};
+</script>
+
+<template>
+  <div class="container">
+    <header class="header">
+      <h1 class="header__title">Spider Solitaire</h1>
+    </header>
+
+    <section class="menu">
+      <button
+        @click="addCards"
+        class="menu__item  item item--button"
+        type="button"
+      >
+        Add cards ({{ cards.length / stacks.length }})
+      </button>
+
+      <div class="menu__item item item--score">
+        Collected full colors: {{ fullColor }} / {{ nrOfFoundation }}
+      </div>
+
+      <button
+        @click="
+          clearData();
+          createCards();
+        "
+        class="menu__item  item item--button"
+        type="button"
+      >
+        Restart
+      </button>
+    </section>
+
+    <div class="stacks">
+      <stack-component
+        v-for="(stack, i) in stacks"
+        :stack="stack"
+        :key="i"
+        @onCardSelect="onCardSelect"
+      />
+    </div>
+
+    <modalWin-component
+      v-if="showModalWin"
+      @close="showModalWin = false"
+      @newGame="
+        clearData();
+        createCards();
+      "
+    />
+    <p v-if="errorMessage" class="alert-message">{{ errorMessage }}</p>
+  </div>
+</template>
+
+<style>
+@import url("https://fonts.googleapis.com/css2?family=Poppins:wght@300&display=swap");
+
+* {
+  margin: 0;
+  box-sizing: border-box;
+  text-align: center;
+  user-select: none;
+  font-family: "Poppins";
+  font-weight: 400;
+}
+.container {
+  min-height: 100vh;
+  position: relative;
+  background-image: radial-gradient(rgba(57, 172, 57, 0.725), #007400, #006400);
+  background-attachment: fixed;
+}
+.header {
+  display: flex;
+  align-items: center;
+  margin: 0 auto 25px auto;
+  padding: 10px;
+}
+.header__title {
+  flex: 1;
+  font-size: 40px;
+  color: white;
+}
+.header__button {
+  background-color: #b70000;
+  border-radius: 5px;
+  padding: 10px;
+  width: 40px;
+  color: white;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.header__button:hover {
+  background-color: #444;
+}
+.stacks {
+  display: flex;
+  justify-content: center;
+  position: relative;
+}
+.menu {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 50px;
+  gap: 30px;
+}
+.menu__select {
+  margin-left: 5px;
+}
+.menu__option {
+  padding: 3px;
+  border-radius: 2px;
+}
+.item {
+  background-color: rgba(199, 200, 196, 1);
+  border-radius: 5px;
+  color: black;
+  font-weight: bold;
+  height: 40px;
+  padding: 0 15px;
+  text-align: center;
+  font-size: 15px;
+  display: flex;
+  align-items: center;
+}
+.item--button {
+  background-color: rgba(199, 200, 196, 0.9);
+  border: none;
+  cursor: pointer;
+  transition: all 0.5s;
+}
+.item--button:hover {
+  background-color: rgba(199, 200, 196, 1);
+}
+.addCardsValidation::before {
+  content: "Before add new cards, every stack has to be filled";
+  color: red;
+  position: absolute;
+  top: -40px;
+  left: 40%;
+}
+.img {
+  position: absolute;
+  z-index: -1;
+  top: 0;
+}
+.img--left {
+  left: -10vw;
+  width: 70vw;
+}
+.img--center {
+  left: 55%;
+  width: 12vw;
+}
+.img--right {
+  right: 2vw;
+  width: 18vw;
+}
+@media (max-width: 690px) {
+  .menu {
+    flex-direction: column;
+  }
+  .item {
+    margin: 5px;
+  }
+}
+
+.alert-message {
+  position: fixed;
+  bottom: 0;
+  width: 100%;
+  padding: 10px 20px;
+  font-size: 24px;
+  font-weight: bold;
+  color: #721c24;
+  background-color: #f8d7da;
+  border-color: #f5c6cb;
+}
+</style>

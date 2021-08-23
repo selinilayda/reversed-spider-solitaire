@@ -1,0 +1,152 @@
+<script>
+export default {
+  props: {
+    card: { type: Object, required: true },
+  },
+  computed: {
+    name() {
+      const names = [
+        "A",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "J",
+        "Q",
+        "K",
+      ];
+      return names[this.card.value];
+    },
+    color() {
+      return require(`../assets/images/${this.card.color.toLowerCase()}.svg`);
+    },
+  },
+};
+</script>
+
+<template lang="html">
+  <div
+    class="flipper-wrap"
+    :class="{ 'flipper-wrap--reversed': card.reversed }"
+  >
+    <div class="flipper">
+      <div
+        class="card card__front"
+        :class="{ 'card--selected': card.selected, 'card--empty': card.empty }"
+      >
+        <span class="name name--up">
+          {{ name }}
+          <img v-if="!card.empty" class="symbol symbol--small" :src="color" />
+        </span>
+        <img v-if="!card.empty" class="symbol symbol--big" :src="color" />
+        <span class="name name--down">
+          {{ name }}
+          <img v-if="!card.empty" class="symbol symbol--small" :src="color" />
+        </span>
+      </div>
+
+      <div class="card card__back"></div>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.flipper {
+  transition: 0.6s;
+  transform-style: preserve-3d;
+  position: relative;
+  width: 100px;
+  height: 150px;
+  margin: 5px;
+}
+.flipper-wrap {
+  position: relative;
+  perspective: 1000;
+}
+.flipper-wrap--reversed .flipper {
+  transform: rotateY(180deg);
+  margin: -13px 5px;
+}
+.card {
+  backface-visibility: hidden;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100px;
+  height: 150px;
+  border: 2px solid grey;
+  border-radius: 10px;
+  vertical-align: center;
+  font-size: 20px;
+}
+.card__front {
+  background: white;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+}
+.card__back {
+  transform: rotateY(180deg);
+  background: #a7c520;
+  border: 2px solid silver;
+}
+.card--selected {
+  border: 3px double red;
+}
+.card--empty {
+  background-color: #eee;
+}
+.symbol--big {
+  width: 55px;
+}
+.symbol--small {
+  width: 14px;
+  position: relative;
+  top: 2px;
+}
+.name {
+  position: absolute;
+}
+.name--up {
+  top: 3px;
+  left: 5px;
+}
+.name--down {
+  bottom: 3px;
+  right: 5px;
+  transform: rotate(180deg);
+}
+@media (max-width: 1155px) {
+  .flipper {
+    width: 80px;
+    height: 120px;
+    margin: 3px;
+  }
+  .card {
+    width: 80px;
+    height: 120px;
+  }
+  .flipper-wrap--reversed .flipper {
+    margin: -13px 3px;
+  }
+  .symbol--big {
+    width: 35px;
+  }
+}
+@media (max-width: 889px) {
+  .flipper,
+  .card {
+    width: 60px;
+    height: 90px;
+  }
+  .symbol--big {
+    width: 20px;
+  }
+}
+</style>
